@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FS DASH - Advanced Option Chain</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #00d4ff;
+            --secondary-color: #7c3aed;
+            --accent-color: #f59e0b;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --dark-bg: #0f0f23;
+            --card-bg: rgba(15, 15, 35, 0.95);
+            --border-color: rgba(0, 212, 255, 0.2);
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --call-color: #10b981;
+            --put-color: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, var(--dark-bg) 0%, #1a1a3e 50%, #0f0f23 100%);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Animated background particles */
+        .bg-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            animation: float 20s infinite linear;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) translateX(0px); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
+        }
+
+        .header {
+            background: rgba(15, 15, 35, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+        }
+
+        .logo i {
+            color: var(--primary-color);
+            filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.5));
+        }
+
+        .nav {
+            display: flex;
+            gap: 8px;
+            background: var(--glass-bg);
+            border-radius: 50px;
+            padding: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+        }
+
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            padding: 12px 24px;
+            border-radius: 50px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: var(--text-primary);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
+        }
+
+        .header-stats {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: var(--glass-bg);
+            border-radius: 50px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--danger-color);
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px var(--danger-color);
+        }
+
+        .status-dot.connected {
+            background: var(--success-color);
+            box-shadow: 0 0 10px var(--success-color);
+        }
+
+        .live-time {
+            font-family: 'Monaco', monospace;
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 16px;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .main-content {
+            margin-top: 100px;
+            padding: 40px;
+            min-height: calc(100vh - 100px);
+        }
+
+        .controls-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .control-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid var(--border-color);
+            transition: all 0.4s ease;
+        }
+
+        .control-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 212, 255, 0.15);
+        }
+
+        .control-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .control-icon {
+            color: var(--primary-color);
+            font-size: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .control-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        select, input, button {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        select:focus, input:focus, button:hover {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.2);
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        button {
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+        }
+
+        .option-chain-container {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .chain-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chain-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: white;
+        }
+
+        .spot-price {
+            font-size: 28px;
+            font-weight: 900;
+            font-family: 'Monaco', monospace;
+            color: white;
+        }
+
+        .option-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .table-header {
+            background: rgba(0, 212, 255, 0.1);
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .table-header th {
+            padding: 15px 8px;
+            text-align: center;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 11px;
+        }
+
+        .call-header {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--call-color);
+        }
+
+        .put-header {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--put-color);
+        }
+
+        .strike-header {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+            font-weight: 800;
+        }
+
+        .option-row {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .option-row:hover {
+            background: rgba(0, 212, 255, 0.05);
+            transform: scale(1.01);
+        }
+
+        .option-row.itm {
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .option-row.atm {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .option-cell {
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 500;
+            font-family: 'Monaco', monospace;
+        }
+
+        .strike-price {
+            font-weight: 800;
+            font-size: 14px;
+            color: var(--warning-color);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .call-cell {
+            color: var(--call-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .call-cell:hover {
+            background: rgba(16, 185, 129, 0.1);
+            transform: scale(1.05);
+        }
+
+        .put-cell {
+            color: var(--put-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .put-cell:hover {
+            background: rgba(239, 68, 68, 0.1);
+            transform: scale(1.05);
+        }
+
+        .price-high {
+            color: var(--call-color);
+            font-weight: 700;
+        }
+
+        .price-low {
+            color: var(--put-color);
+            font-weight: 700;
+        }
+
+        .volume-high {
+            background: rgba(0, 212, 255, 0.2);
+            border-radius: 4px;
+            font-weight: 700;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(0, 212, 255, 0.2);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 212, 255, 0.15);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 900;
+            font-family: 'Monaco', monospace;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .call-stats .stat-value {
+            color: var(--call-color);
+        }
+
+        .put-stats .stat-value {
+            color: var(--put-color);
+        }
+
+        .pcr-stats .stat-value {
+            color: var(--warning-color);
+        }
+
+        .filter-section {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--glass-bg);
+            padding: 10px 15px;
+            border-radius: 25px;
+            border: 1px solid var(--border-color);
+        }
+
+        .filter-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .filter-checkbox {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 2px solid var(--border-color);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-checkbox:checked {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .export-section {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .export-btn {
+            padding: 12px 24px;
+            background: var(--glass-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .export-btn:hover {
+            background: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .nav {
+                display: none;
+            }
+            
+            .header {
+                padding: 15px 20px;
+            }
+            
+            .main-content {
+                padding: 20px 10px;
+            }
+            
+            .controls-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .option-table {
+                font-size: 11px;
+            }
+            
+            .option-cell {
+                padding: 8px 4px;
+            }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, var(--primary-color), var(--secondary-color));
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated background particles -->
+    <div class="bg-particles" id="particles"></div>
+
+    <header class="header">
+        <div class="logo">
+            <i class="fas fa-rocket"></i>
+            FS DASH
+        </div>
+        <nav class="nav">
+            <a href="index.html">Dashboard</a>
+            <a href="option_chain.html" class="active">Options</a>
+            <a href="pcr.html">PCR Analysis</a>
+            <a href="sentiment.html">Sentiment</a>
+            <a href="portfolio.html">Portfolio</a>
+        </nav>
+        <div class="header-stats">
+            <div class="connection-status">
+                <div class="status-dot connected" id="connectionStatus"></div>
+                <span id="statusText">Connected</span>
+            </div>
+            <div class="live-time" id="liveTime"></div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Controls Section -->
+        <div class="controls-section">
+            <div class="control-card">
+                <div class="control-header">
+                    <i class="fas fa-chart-line control-icon"></i>
+                    <h3 class="control-title">Market Selection</h3>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Symbol</label>
+                    <select id="symbolSelect">
+                        <option value="NIFTY">NIFTY 50</option>
+                        <option value="BANKNIFTY">BANK NIFTY</option>
+                        <option value="FINNIFTY">FIN NIFTY</option>
+                        <option value="MIDCPNIFTY">MIDCAP NIFTY</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Expiry Date</label>
+                    <select id="expirySelect">
+                        <option value="2024-01-25">25 JAN 2024</option>
+                        <option value="2024-02-01">01 FEB 2024</option>
+                        <option value="2024-02-08">08 FEB 2024</option>
+                        <option value="2024-02-15">15 FEB 2024</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-card">
+                <div class="control-header">
+                    <i class="fas fa-filter control-icon"></i>
+                    <h3 class="control-title">Strike Range</h3>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">ATM Range</label>
+                    <select id="atmRange">
+                        <option value="10">±10 Strikes</option>
+                        <option value="15" selected>±15 Strikes</option>
+                        <option value="20">±20 Strikes</option>
+                        <option value="25">±25 Strikes</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Strike Interval</label>
+                    <select id="strikeInterval">
+                        <option value="50">50 Points</option>
+                        <option value="100" selected>100 Points</option>
+                        <option value="200">200 Points</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-card">
+                <div class="control-header">
+                    <i class="fas fa-sync-alt control-icon"></i>
+                    <h3 class="control-title">Data Control</h3>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Auto Refresh</label>
+                    <select id="autoRefresh">
+                        <option value="5">5 Seconds</option>
+                        <option value="10" selected>10 Seconds</option>
+                        <option value="30">30 Seconds</option>
+                        <option value="0">Manual</option>
+                    </select>
+                </div>
+                <button id="refreshBtn">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Statistics Bar -->
+        <div class="stats-bar">
+            <div class="stat-card call-stats">
+                <div class="stat-value" id="totalCallOI">-</div>
+                <div class="stat-label">Total Call OI</div>
+            </div>
+            <div class="stat-card put-stats">
+                <div class="stat-value" id="totalPutOI">-</div>
+                <div class="stat-label">Total Put OI</div>
+            </div>
+            <div class="stat-card pcr-stats">
+                <div class="stat-value" id="pcrValue">-</div>
+                <div class="stat-label">Put Call Ratio</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="maxPain" style="color: var(--primary-color);">-</div>
+                <div class="stat-label">Max Pain</div>
+            </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <div class="filter-group">
+                <input type="checkbox" id="showITM" class="filter-checkbox" checked>
+                <label for="showITM" class="filter-label">Show ITM</label>
+            </div>
+            <div class="filter-group">
+                <input type="checkbox" id="showOTM" class="filter-checkbox" checked>
+                <label for="showOTM" class="filter-label">Show OTM</label>
+            </div>
+            <div class="filter-group">
+                <input type="checkbox" id="highlightHighOI" class="filter-checkbox" checked>
+                <label for="highlightHighOI" class="filter-label">Highlight High OI</label>
+            </div>
+            <div class="filter-group">
+                <input type="checkbox" id="highlightHighVolume" class="filter-checkbox">
+                <label for="highlightHighVolume" class="filter-label">Highlight High Volume</label>
+            </div>
+        </div>
+
+        <!-- Option Chain Table -->
+        <div class="option-chain-container">
+            <div class="chain-header">
+                <div class="chain-title">
+                    <i class="fas fa-table"></i>
+                    NIFTY Option Chain
+                </div>
+                <div class="spot-price" id="spotPrice">21,725.00</div>
+            </div>
+
+            <div id="optionChainContent">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Loading Option Chain...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Section -->
+        <div class="export-section">
+            <button class="export-btn" onclick="exportToCSV()">
+                <i class="fas fa-download"></i>
+                Export CSV
+            </button>
+            <button class="export-btn" onclick="exportToExcel()">
+                <i class="fas fa-file-excel"></i>
+                Export Excel
+            </button>
+            <button class="export-btn" onclick="printChain()">
+                <i class="fas fa-print"></i>
+                Print
+            </button>
+        </div>
+    </main>
+
+    <script>
+        let optionChainData = {};
+        let currentSpotPrice = 21725.00;
+        let refreshInterval = null;
+
+        // Initialize particles
+        function initParticles() {
+            const particlesContainer = document.getElementById('particles');
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Update live time
+        function updateLiveTime() {
+            const now = new Date();
+            document.getElementById('liveTime').textContent = now.toLocaleTimeString();
+        }
+
+        // Generate mock option chain data
+        function generateMockData() {
+            const symbol = document.getElementById('symbolSelect').value;
+            const basePrice = getBasePrice(symbol);
+            const atmStrike = Math.round(basePrice / 100) * 100;
+            const range = parseInt(document.getElementById('atmRange').value);
+            const interval = parseInt(document.getElementById('strikeInterval').value);
+            
+            const data = {};
+            
+            for (let i = -range; i <= range; i++) {
+                const strike = atmStrike + (i * interval);
+                const distanceFromATM = Math.abs(strike - basePrice);
+                
+                // Calculate intrinsic values
+                const callIntrinsic = Math.max(basePrice - strike, 0);
+                const putIntrinsic = Math.max(strike - basePrice, 0);
+                
+                // Add time value (decreases with distance from ATM)
+                const timeValue = Math.max(50 - (distanceFromATM / 20), 5);
+                
+                data[strike] = {
+                    strike: strike,
+                    call: {
+                        ltp: Math.max(callIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05),
+                        bid: 0,
+                        ask: 0,
+                        volume: Math.floor(Math.random() * 10000 + 1000),
+                        oi: Math.floor(Math.random() * 50000 + 10000),
+                        change: (Math.random() * 20 - 10).toFixed(2),
+                        iv: (Math.random() * 30 + 15).toFixed(2)
+                    },
+                    put: {
+                        ltp: Math.max(putIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05),
+                        bid: 0,
+                        ask: 0,
+                        volume: Math.floor(Math.random() * 10000 + 1000),
+                        oi: Math.floor(Math.random() * 50000 + 10000),
+                        change: (Math.random() * 20 - 10).toFixed(2),
+                        iv: (Math.random() * 30 + 15).toFixed(2)
+                    }
+                };
+            }
+            
+            return data;
+        }
+
+        function getBasePrice(symbol) {
+            const prices = {
+                'NIFTY': 21725,
+                'BANKNIFTY': 46850,
+                'FINNIFTY': 20150,
+                'MIDCPNIFTY': 10450
+            };
+            return prices[symbol] || 21725;
+        }
+
+        // Render option chain table
+        function renderOptionChain(data) {
+            const content = document.getElementById('optionChainContent');
+            const atmStrike = Math.round(currentSpotPrice / 100) * 100;
+            
+            let html = `
+                <div style="overflow-x: auto;">
+                    <table class="option-table">
+                        <thead class="table-header">
+                            <tr>
+                                <th class="call-header">OI</th>
+                                <th class="call-header">Volume</th>
+                                <th class="call-header">IV</th>
+                                <th class="call-header">LTP</th>
+                                <th class="call-header">Change</th>
+                                <th class="strike-header">Strike</th>
+                                <th class="put-header">Change</th>
+                                <th class="put-header">LTP</th>
+                                <th class="put-header">IV</th>
+                                <th class="put-header">Volume</th>
+                                <th class="put-header">OI</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            const strikes = Object.keys(data).map(Number).sort((a, b) => a - b);
+            
+            strikes.forEach(strike => {
+                const option = data[strike];
