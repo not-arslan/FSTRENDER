@@ -1,1 +1,24 @@
 
+# FSTRENDER
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/not-arslan/FSTRENDER)](https://github.com/not-arslan/FSTRENDER/issues)
+[![GitHub stars](https://img.shields.io/github/stars/not-arslan/FSTRENDER)](https://github.com/not-arslan/FSTRENDER/stargazers)
+
+FSTRENDER is a web-based dashboard project designed for rendering **financial market data** in a clean and interactive way.  
+It includes multiple views like **Option Chain**, **Put/Call Ratio (PCR)**, **Sentiment Analysis**, and a **Portfolio Tracker**.
+
+---
+
+## 🚀 Features
+
+- 📊 **Option Chain** – visualize strike prices, OI, IV, etc.  
+- 📈 **PCR Dashboard** – view put/call ratio for better market sentiment.  
+- 📰 **Sentiment Analysis** – see market impact via sentiment metrics.  
+- 💼 **Portfolio Dashboard** – track investments in one place.  
+- ⚡ Static HTML/JS setup for quick deployment.  
+
+---
+
+## 📁 Project Structure
+
