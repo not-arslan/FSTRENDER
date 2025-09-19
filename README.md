@@ -36,7 +36,9 @@ FSTRENDER/
 ├── sentiment.html      # 📰 Sentiment dashboard
 ├── portfolio.html      # 💼 Portfolio tracking
 └── backend/            # ⚙️ Data fetching / APIs (future expansion)
-🛠️ Tech Stack
+ 
+
+**🛠️ Tech Stack
 🎨 Frontend: HTML, CSS, JavaScript
 
 ⚡ Backend (WIP): Node.js / Python APIs
@@ -94,4 +96,4 @@ Use it freely — just credit the author.
 Arssss
 💻 Gamer • 🧠 Tech Thinker • ⚡ Always building cool stuff
 
-<p align="center"> ⭐ If you like this project, drop a star to support! ⭐ </p> ```
+<p align="center"> ⭐ If you like this project, drop a star to support! ⭐ </p> ```**
