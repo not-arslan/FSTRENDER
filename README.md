@@ -1,70 +1,73 @@
 # 🚀 FSTRENDER
-
-A modern **Stock Market Dashboard** for Indian markets.  
-Currently frontend-focused, with backend APIs under development.  
-
----
-
-## 🛠️ Tech Stack
-
-- 🎨 **Frontend:** HTML, CSS, JavaScript  
-- ⚡ **Backend (WIP):** Node.js / Python APIs  
-- 📊 **Data Sources:** Market APIs (to be integrated)  
+<div align="center">
+  <h3>A Modern Stock Market Dashboard for Indian Markets</h3>
+  <p>Real-time market analysis and portfolio tracking built for the Indian stock market ecosystem</p>
+  
+  ![License](https://img.shields.io/badge/license-MIT-blue.svg)
+  ![Status](https://img.shields.io/badge/status-in%20development-yellow.svg)
+  ![Frontend](https://img.shields.io/badge/frontend-ready-green.svg)
+</div>
 
 ---
 
-## 🚀 Getting Started
+## 📋 Table of Contents
+- [✨ Features](#-features)
+- [🛠️ Technology Stack](#️-technology-stack)
+- [🚀 Quick Start](#-quick-start)
+- [📁 Project Structure](#-project-structure)
+- [🗺️ Roadmap](#️-roadmap)
+- [🤝 Contributing](#-contributing)
+- [📜 License](#-license)
+- [👤 Author](#-author)
 
-### 🔹 Clone Repo
+---
+
+## ✨ Features
+
+### Current Features
+- 📊 **Market Overview**: Real-time Indian market indices (NSE, BSE)
+- 📈 **Stock Analysis**: Individual stock performance tracking
+- 💹 **Market Movers**: Top gainers, losers, and most active stocks
+- 🎨 **Modern UI**: Clean, responsive design optimized for all devices
+- ⚡ **Fast Loading**: Lightweight frontend with optimized performance
+
+### Coming Soon
+- 🔄 **Live Data**: WebSocket integration for real-time updates
+- 📈 **Advanced Charts**: Professional-grade charting with technical indicators
+- 👤 **User Portfolios**: Personal portfolio tracking and analysis
+- 🔔 **Price Alerts**: Custom notifications for price movements
+- 📱 **Mobile App**: React Native mobile application
+
+---
+
+## 🛠️ Technology Stack
+
+**Frontend**
+- HTML5, CSS3, JavaScript (ES6+)
+- Chart.js for data visualization
+- Responsive design with CSS Grid/Flexbox
+
+**Backend** *(In Development)*
+- Node.js with Express.js
+- RESTful API architecture
+- WebSocket for real-time data
+
+**Data Sources**
+- NSE API integration
+- BSE market data
+- Real-time financial data providers
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Modern web browser (Chrome, Firefox, Safari, Edge)
+- Node.js 16+ (for backend development)
+- Git
+
+### Installation
+1. **Clone the repository**
 ```bash
-git clone https://github.com/not-arslan/FSTRENDER.git
+git clone [https://github.com/not-arslan/FSTRENDER.git](https://github.com/not-arslan/FSTRENDER.git)
 cd FSTRENDER
-
-🔹 Run Locally
-
-Option 1 → Just open index.html in browser
-Option 2 → Use a simple local server:
-
-python3 -m http.server 8080
-
-
-👉 Visit: http://localhost:8080
-
-🔹 Backend (Optional / WIP)
-cd backend
-npm install
-npm start
-
-📌 Roadmap
-
-🔄 Real-time market data (WebSockets/API)
-
-📈 Pro charting with Chart.js / D3.js
-
-🔑 Authentication for user portfolios
-
-📱 Responsive mobile-friendly design
-
-☁️ Cloud deployment (Vercel / GitHub Pages / Oracle Cloud)
-
-🤝 Contributing
-
-Contributions are welcome 💡
-
-🍴 Fork the repo
-
-🌱 Create a branch (feature/your-feature)
-
-💾 Commit your changes
-
-🚀 Open a Pull Request
-
-📜 License
-
-Licensed under the MIT License 📝
-Use it freely — just credit the author.
-
-👤 Author
-
-Arssss
-💻 Gamer • 🧠 Tech Thinker • ⚡ Always building cool stuff
