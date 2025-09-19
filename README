@@ -1,24 +1,96 @@
+<h1 align="center">✨ FSTRENDER ✨</h1>
 
-# FSTRENDER
+<p align="center">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="license"/>
+  <img src="https://img.shields.io/github/issues/not-arslan/FSTRENDER" alt="issues"/>
+  <img src="https://img.shields.io/github/stars/not-arslan/FSTRENDER" alt="stars"/>
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/not-arslan/FSTRENDER)](https://github.com/not-arslan/FSTRENDER/issues)
-[![GitHub stars](https://img.shields.io/github/stars/not-arslan/FSTRENDER)](https://github.com/not-arslan/FSTRENDER/stargazers)
-
-FSTRENDER is a web-based dashboard project designed for rendering **financial market data** in a clean and interactive way.  
-It includes multiple views like **Option Chain**, **Put/Call Ratio (PCR)**, **Sentiment Analysis**, and a **Portfolio Tracker**.
-
----
-
-## 🚀 Features
-
-- 📊 **Option Chain** – visualize strike prices, OI, IV, etc.  
-- 📈 **PCR Dashboard** – view put/call ratio for better market sentiment.  
-- 📰 **Sentiment Analysis** – see market impact via sentiment metrics.  
-- 💼 **Portfolio Dashboard** – track investments in one place.  
-- ⚡ Static HTML/JS setup for quick deployment.  
+<p align="center">
+  🚀 A modern web-based dashboard for <b>financial market data visualization</b>.  
+  Includes Option Chain, PCR, Sentiment Analysis & Portfolio tracking.
+</p>
 
 ---
 
-## 📁 Project Structure
+## 🌟 Features
 
+✅ **Option Chain** – visualize strike prices, OI, IV, etc.  
+✅ **PCR Dashboard** – understand market sentiment with put/call ratio.  
+✅ **Sentiment Analysis** – see bullish/bearish bias based on data/news.  
+✅ **Portfolio Tracker** – monitor all investments in one place.  
+✅ **Lightweight Setup** – pure HTML/JS (with backend support planned).  
+
+---
+
+## 📂 Project Structure
+
+```bash
+FSTRENDER/
+│
+├── index.html          # Main landing page
+├── option_chain.html   # Option Chain dashboard
+├── pcr.html            # Put/Call Ratio view
+├── sentiment.html      # Sentiment dashboard
+├── portfolio.html      # Portfolio tracker
+└── backend/            # Backend logic (APIs / data fetching)
+🛠️ Tech Stack
+🎨 Frontend: HTML, CSS, JavaScript
+
+⚡ Backend (WIP): Node.js / Python for APIs
+
+📊 Data Sources: Market APIs (planned integration)
+
+🚀 Getting Started
+1️⃣ Clone Repo
+bash
+Copy code
+git clone https://github.com/not-arslan/FSTRENDER.git
+cd FSTRENDER
+2️⃣ Run Locally
+Open index.html in your browser OR
+
+Start a local server:
+
+bash
+Copy code
+python3 -m http.server 8080
+👉 Visit: http://localhost:8080
+
+3️⃣ Backend (Optional / WIP)
+bash
+Copy code
+cd backend
+npm install
+npm start
+📌 Roadmap
+ 🔄 Real-time market data with WebSockets
+
+ 📈 Advanced charting (Chart.js / D3.js)
+
+ 🔑 Authentication & user accounts
+
+ 📱 Responsive mobile-first UI
+
+ ☁️ Deploy on GitHub Pages / Vercel / Oracle Cloud
+
+🤝 Contributing
+Want to make FSTRENDER even better?
+
+🍴 Fork the repo
+
+🌱 Create a new branch (feature/your-feature)
+
+💾 Commit changes
+
+🚀 Push & open a Pull Request
+
+📜 License
+Licensed under the MIT License.
+Free to use, modify & share — just give credit.
+
+👤 Author
+not-arslan X claude.ai
+💻 Gamer | 🧠 Tech Thinker | ⚡ Builder of cool stuff
+
+<p align="center">⭐ If you like this project, don’t forget to star it! ⭐</p> ```
