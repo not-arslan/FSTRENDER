@@ -67,7 +67,40 @@
 - Git
 
 ### Installation
-1. **Clone the repository**
+
+1.  **Clone the repository**
+    ```bash
+    git clone [https://github.com/not-arslan/FSTRENDER.git](https://github.com/not-arslan/FSTRENDER.git)
+    cd FSTRENDER
+    ```
+
+2.  **Run Frontend** (Choose one method)
+
+    **Option A: Direct Browser**
+    Simply open `index.html` in your browser.
+    ```bash
+    open index.html
+    ```
+
+    **Option B: Local Server**
+    Using Python
+    ```bash
+    python3 -m http.server 8080
+    ```
+    Using Node.js
+    ```bash
+    npx serve .
+    ```
+    Using PHP
+    ```bash
+    php -S localhost:8080
+    ```
+
+3.  **Access Application**
+    - Open your browser and navigate to `http://localhost:8080`
+
+### Backend Setup *(Optional - Work in Progress)*
 ```bash
-git clone [https://github.com/not-arslan/FSTRENDER.git](https://github.com/not-arslan/FSTRENDER.git)
-cd FSTRENDER
+cd backend
+npm install
+npm start
