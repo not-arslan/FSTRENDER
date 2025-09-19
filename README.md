@@ -17,7 +17,7 @@ Currently frontend-focused, with backend APIs under development.
 
 ### 🔹 Clone Repo
 ```bash
-git clone https://github.com/not-arslan/FSTRENDER.git```
+git clone https://github.com/not-arslan/FSTRENDER.git
 cd FSTRENDER
 
 🔹 Run Locally
