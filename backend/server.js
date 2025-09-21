@@ -18,6 +18,15 @@ const { SmartAPI } = require('smartapi-javascript');
 // Environment variables
 require('dotenv').config();
 
+const speakeasy = require('speakeasy');
+
+// Generate and log TOTP for Angel One
+const generatedTotp = speakeasy.totp({
+    secret: process.env.ANGEL_TOTP,
+    encoding: 'base32'
+});
+console.log("泊 Generated TOTP for Angel One:", generatedTotp);
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -27,12 +36,10 @@ const PORT = process.env.PORT || 25602;
 
 // Angel One SmartAPI Configuration
 const SMARTAPI_CONFIG = {
-    api_key: process.env.ANGEL_API_KEY || 'your_api_key_here',
-    username: process.env.ANGEL_USERNAME || 'your_username',
-    pwd: process.env.ANGEL_PASSWORD || 'your_password',
-    factor2: process.env.ANGEL_TOTP || 'your_totp',
-    vc: process.env.ANGEL_VC || 'your_vc',
-    appcode: process.env.ANGEL_APPCODE || 'your_appcode'
+    api_key: process.env.ANGEL_API_KEY,
+    client_code: process.env.ANGEL_CLIENT_CODE,
+    pwd: process.env.ANGEL_PASSWORD,
+    factor2: generatedTotp
 };
 
 // Middleware
@@ -123,7 +130,7 @@ class SmartAPIManager {
     async login() {
         try {
             const loginData = await this.smartapi.generateSession(
-                SMARTAPI_CONFIG.username,
+                SMARTAPI_CONFIG.client_code,
                 SMARTAPI_CONFIG.pwd,
                 SMARTAPI_CONFIG.factor2
             );
@@ -134,7 +141,6 @@ class SmartAPIManager {
                 isSmartAPIConnected = true;
                 console.log('SmartAPI Login successful:', loginData.data.clientcode);
                 
-                // Set auth token
                 this.smartapi.setSessionExpiryHook(() => {
                     console.log('Session expired. Attempting to relogin...');
                     this.login();
@@ -164,20 +170,17 @@ class SmartAPIManager {
         }
     }
 
-    async getMarketData(symbol, exchange = 'NSE') {
+    async getMarketData(symbol) {
         try {
             if (!this.isLoggedIn) {
                 await this.login();
             }
 
-            const symbolData = await this.smartapi.getMarketData(
-                exchange,
-                symbol,
-                '1DAY'
-            );
+            const token = this.getSymbolToken(symbol);
+            const data = await this.smartapi.getLtpData("NSE", symbol, token);
 
-            if (symbolData.status) {
-                return symbolData.data;
+            if (data.status) {
+                return data.data;
             }
             return null;
         } catch (error) {
@@ -228,7 +231,6 @@ class SmartAPIManager {
     }
 
     getSymbolToken(symbol) {
-        // Symbol token mapping for major indices
         const tokenMap = {
             'NIFTY': '99926000',
             'BANKNIFTY': '99926009',
@@ -257,14 +259,10 @@ class MarketDataGenerator {
 
     generateRealtimeData(symbol) {
         const base = this.baseData[symbol] || this.baseData['NIFTY'];
-        const volatility = 0.02; // 2% daily volatility
-        
-        // Generate realistic price movement
+        const volatility = 0.02;
         const change = (Math.random() - 0.5) * volatility * base.price;
         const currentPrice = base.price + change;
         const changePercent = (change / base.price) * 100;
-        
-        // Generate volume with some randomness
         const volumeVariation = 0.3;
         const currentVolume = Math.floor(
             base.volume * (1 + (Math.random() - 0.5) * volumeVariation)
@@ -281,32 +279,29 @@ class MarketDataGenerator {
     }
 
     generateOptionChain(symbol, strikes = 15) {
-        const basePrice = this.baseData[symbol]?.price || 21725;
+        const baseDataForSymbol = this.baseData[symbol];
+        const basePrice = (baseDataForSymbol && baseDataForSymbol.price) || 21725;
         const atmStrike = Math.round(basePrice / 100) * 100;
         const optionData = [];
 
         for (let i = -strikes; i <= strikes; i++) {
             const strike = atmStrike + (i * 100);
             const distanceFromATM = Math.abs(strike - basePrice);
-            
-            // Calculate intrinsic values
             const callIntrinsic = Math.max(basePrice - strike, 0);
             const putIntrinsic = Math.max(strike - basePrice, 0);
-            
-            // Add time value and IV
             const timeValue = Math.max(50 - (distanceFromATM / 20), 5);
-            const iv = Math.random() * 30 + 15; // 15-45% IV
+            const iv = Math.random() * 30 + 15;
             
             optionData.push({
                 strike: strike,
-                call_ltp: Math.max(callIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05),
+                call_ltp: parseFloat(Math.max(callIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05).toFixed(2)),
                 call_oi: Math.floor(Math.random() * 50000 + 10000),
                 call_volume: Math.floor(Math.random() * 10000 + 1000),
-                call_iv: iv,
-                put_ltp: Math.max(putIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05),
+                call_iv: parseFloat(iv.toFixed(2)),
+                put_ltp: parseFloat(Math.max(putIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05).toFixed(2)),
                 put_oi: Math.floor(Math.random() * 50000 + 10000),
                 put_volume: Math.floor(Math.random() * 10000 + 1000),
-                put_iv: iv
+                put_iv: parseFloat(iv.toFixed(2))
             });
         }
 
@@ -347,7 +342,6 @@ wss.on('connection', (ws) => {
     console.log('New client connected');
     connectedClients.add(ws);
 
-    // Send initial data
     ws.send(JSON.stringify({
         type: 'connection',
         status: 'connected',
@@ -382,7 +376,6 @@ wss.on('connection', (ws) => {
 async function handleSubscription(ws, data) {
     console.log(`Subscribing to ${data.symbol || 'market data'}`);
     
-    // Send current market data
     if (data.symbol) {
         const marketData = await getCurrentMarketData(data.symbol);
         ws.send(JSON.stringify({
@@ -401,7 +394,6 @@ async function handleUnsubscription(ws, data) {
  */
 async function getCurrentMarketData(symbol) {
     try {
-        // Try to get real data from SmartAPI
         if (isSmartAPIConnected) {
             const apiData = await smartAPIManager.getMarketData(symbol);
             if (apiData) {
@@ -419,7 +411,6 @@ async function getCurrentMarketData(symbol) {
             }
         }
         
-        // Fallback to generated data
         const generatedData = marketDataGenerator.generateRealtimeData(symbol);
         marketDataCache.set(symbol, generatedData);
         return generatedData;
@@ -487,7 +478,6 @@ app.get('/api/optionchain/:symbol/:expiry?', async (req, res) => {
             optionData = marketDataGenerator.generateOptionChain(symbol);
         }
         
-        // Cache the data
         optionChainCache.set(`${symbol}_${expiry}`, optionData);
         
         res.json({
@@ -507,7 +497,6 @@ app.get('/api/pcr/:symbol/:expiry?', async (req, res) => {
         const symbol = req.params.symbol.toUpperCase();
         const expiry = req.params.expiry || getNextExpiry();
         
-        // Get option chain data first
         let optionChainData = optionChainCache.get(`${symbol}_${expiry}`);
         
         if (!optionChainData) {
@@ -535,7 +524,6 @@ app.get('/api/portfolio', async (req, res) => {
         if (isSmartAPIConnected) {
             portfolioData = await smartAPIManager.getPortfolio();
         } else {
-            // Return mock portfolio data
             portfolioData = {
                 holdings: [
                     { symbol: 'RELIANCE', quantity: 50, avgprice: 2485.50, ltp: 2542.30 },
@@ -548,7 +536,6 @@ app.get('/api/portfolio', async (req, res) => {
             };
         }
         
-        // Calculate portfolio summary
         let totalValue = 0;
         let totalInvested = 0;
         let totalPnL = 0;
@@ -565,7 +552,7 @@ app.get('/api/portfolio', async (req, res) => {
             total_value: totalValue,
             total_invested: totalInvested,
             total_pnl: totalPnL,
-            day_change: totalPnL * 0.1, // Mock day change
+            day_change: totalPnL * 0.1,
             holdings_count: portfolioData.holdings.length
         };
         
@@ -585,7 +572,6 @@ app.get('/api/history/:symbol/:period?', async (req, res) => {
         const symbol = req.params.symbol.toUpperCase();
         const period = req.params.period || '1D';
         
-        // Generate mock historical data
         const data = generateHistoricalData(symbol, period);
         
         res.json({
@@ -611,7 +597,8 @@ function getNextExpiry() {
 }
 
 function generateHistoricalData(symbol, period) {
-    const basePrice = marketDataGenerator.baseData[symbol]?.price || 21725;
+    const baseDataForSymbol = marketDataGenerator.baseData[symbol];
+    const basePrice = (baseDataForSymbol && baseDataForSymbol.price) || 21725;
     const data = [];
     const labels = [];
     
@@ -655,7 +642,6 @@ function generateHistoricalData(symbol, period) {
  * Background tasks
  */
 function startDataUpdates() {
-    // Update market data every 5 seconds
     dataUpdateInterval = setInterval(async () => {
         if (connectedClients.size === 0) return;
         
@@ -666,7 +652,6 @@ function startDataUpdates() {
             marketData[symbol] = await getCurrentMarketData(symbol);
         }
         
-        // Broadcast to all connected clients
         const message = JSON.stringify({
             type: 'market_update',
             data: marketData
@@ -688,7 +673,6 @@ async function initializeServer() {
     try {
         console.log('Initializing FS DASH Backend Server...');
         
-        // Try to login to SmartAPI
         const loginSuccess = await smartAPIManager.login();
         if (loginSuccess) {
             console.log('SmartAPI connected successfully');
@@ -696,15 +680,13 @@ async function initializeServer() {
             console.log('SmartAPI connection failed, using mock data');
         }
         
-        // Start background data updates
         startDataUpdates();
         
-        // Start server
         server.listen(PORT, () => {
-            console.log(`🚀 FS DASH Server running on port ${PORT}`);
-            console.log(`📊 WebSocket endpoint: ws://localhost:${PORT}/ws`);
-            console.log(`🔌 REST API available at: http://localhost:${PORT}/api`);
-            console.log(`💹 Angel One SmartAPI: ${isSmartAPIConnected ? 'Connected' : 'Disconnected'}`);
+            console.log(`噫 FS DASH Server running on port ${PORT}`);
+            console.log(`投 WebSocket endpoint: ws://localhost:${PORT}/ws`);
+            console.log(`伯 REST API available at: http://localhost:${PORT}/api`);
+            console.log(`鳥 Angel One SmartAPI: ${isSmartAPIConnected ? 'Connected' : 'Disconnected'}`);
         });
         
     } catch (error) {
@@ -721,12 +703,10 @@ process.on('SIGINT', () => {
         clearInterval(dataUpdateInterval);
     }
     
-    // Close all WebSocket connections
     connectedClients.forEach(client => {
         client.close();
     });
     
-    // Close database
     db.close((err) => {
         if (err) {
             console.error(err.message);
@@ -741,5 +721,4 @@ process.on('SIGINT', () => {
     });
 });
 
-// Start the server
-initializeServer();     
+initializeServer();
