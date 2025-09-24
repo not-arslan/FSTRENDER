@@ -533,14 +533,6 @@
             text-align: center;
         }
 
-        .api-status-card .positive {
-            color: var(--success-color);
-        }
-
-        .api-status-card .negative {
-            color: var(--danger-color);
-        }
-
         .timestamp {
             font-size: 12px;
             color: var(--text-secondary);
@@ -600,6 +592,13 @@
 
         ::-webkit-scrollbar-thumb:hover {
             background: var(--primary-color);
+        }
+
+        .error-message {
+            color: var(--danger-color);
+            text-align: center;
+            padding: 20px;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -686,25 +685,15 @@
                             <option value="BANKNIFTY">BANK NIFTY</option>
                             <option value="FINNIFTY">FIN NIFTY</option>
                             <option value="MIDCPNIFTY">MIDCAP NIFTY</option>
-                            <option value="SENSEX">SENSEX</option>
                         </select>
                     </div>
                     <div class="control-group">
                         <label class="control-label">Timeframe</label>
                         <select id="chartTimeframe">
-                            <option value="1minute">1 Min</option>
-                            <option value="5minute" selected>5 Min</option>
-                            <option value="15minute">15 Min</option>
-                            <option value="1hour">1 Hour</option>
-                            <option value="1day">1 Day</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label class="control-label">Chart Type</label>
-                        <select id="chartType">
-                            <option value="line" selected>Line</option>
-                            <option value="candlestick">Candlestick</option>
-                            <option value="area">Area</option>
+                            <option value="1D">1 Day</option>
+                            <option value="1W" selected>1 Week</option>
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
                         </select>
                     </div>
                     <div class="control-group">
@@ -757,7 +746,7 @@
                             <div class="symbol-name">NIFTY Trend</div>
                             <div class="symbol-desc">Overall market direction</div>
                         </div>
-                        <div class="price-change neutral">
+                        <div class="price-change neutral" id="niftyTrend">
                             <i class="fas fa-minus"></i> Neutral
                         </div>
                     </div>
@@ -766,7 +755,7 @@
                             <div class="symbol-name">Options Flow</div>
                             <div class="symbol-desc">Call/Put activity</div>
                         </div>
-                        <div class="price-change positive">
+                        <div class="price-change positive" id="optionsFlow">
                             <i class="fas fa-arrow-up"></i> Bullish
                         </div>
                     </div>
@@ -775,7 +764,7 @@
                             <div class="symbol-name">Volatility</div>
                             <div class="symbol-desc">Market volatility index</div>
                         </div>
-                        <div class="price-change negative">
+                        <div class="price-change negative" id="volatilitySignal">
                             <i class="fas fa-arrow-down"></i> High
                         </div>
                     </div>
@@ -785,9 +774,16 @@
     </main>
     
     <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:25602';
+        const WS_URL = 'ws://localhost:25602';
+        
         let ws = null;
         let symbolData = {};
         let chart = null;
+        let isConnected = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
 
         // Initialize particles
         function initParticles() {
@@ -808,78 +804,67 @@
             document.getElementById('liveTime').textContent = now.toLocaleTimeString();
         }
 
-        // WebSocket connection
-        async function connectWebSocket() {
-            if (ws) {
-                ws.close();
-            }
+        // API Helper Functions
+        async function fetchData(endpoint) {
             try {
-                ws = new WebSocket('ws://localhost:25602/ws');
-                ws.onopen = () => {
-                    console.log('WebSocket connection established.');
-                    document.getElementById('connectionStatus').classList.add('connected');
-                    document.getElementById('statusText').textContent = 'Connected';
-                    ws.send(JSON.stringify({ type: 'subscribe', symbol: 'NIFTY' }));
-                    updateApiStatusCard(true);
-                };
-
-                ws.onmessage = (event) => {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'market_update') {
-                        symbolData = data.data;
-                        updateDashboard();
-                    }
-                };
-
-                ws.onclose = () => {
-                    console.log('WebSocket connection closed.');
-                    document.getElementById('connectionStatus').classList.remove('connected');
-                    document.getElementById('statusText').textContent = 'Disconnected';
-                    updateApiStatusCard(false);
-                    setTimeout(connectWebSocket, 5000);
-                };
-
-                ws.onerror = (error) => {
-                    console.error('WebSocket Error:', error);
-                };
+                const response = await fetch(`${API_BASE_URL}/api${endpoint}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
             } catch (error) {
-                console.error('Failed to connect to WebSocket:', error);
-                document.getElementById('connectionStatus').classList.remove('connected');
-                document.getElementById('statusText').textContent = 'Connection Failed';
-                updateApiStatusCard(false);
+                console.error(`API Error (${endpoint}):`, error);
+                throw error;
             }
         }
-        
-        // Check API status
-        async function checkApiStatus() {
+
+        // Check API health and connection status
+        async function checkApiHealth() {
             try {
-                const response = await fetch('http://localhost:25602/api/health');
-                const data = await response.json();
-                
-                updateApiStatusCard(data.angelone_connected);
-                if (data.angelone_connected) {
-                    connectWebSocket();
-                }
+                const health = await fetchData('/health');
+                updateConnectionStatus(health.angelone_connected, health.smartapi_status);
+                updateApiStatusCard(health);
+                return health;
             } catch (error) {
-                console.error("API status check failed:", error);
-                updateApiStatusCard(false);
+                console.error('Health check failed:', error);
+                updateConnectionStatus(false, 'disconnected');
+                updateApiStatusCard(null);
+                return null;
+            }
+        }
+
+        // Update connection status in header
+        function updateConnectionStatus(isAngelConnected, smartApiStatus) {
+            const statusDot = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('statusText');
+            
+            if (isAngelConnected && smartApiStatus === 'connected') {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Connected';
+                isConnected = true;
+            } else {
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+                isConnected = false;
             }
         }
 
         // Update API status card
-        function updateApiStatusCard(isConnected) {
+        function updateApiStatusCard(healthData) {
             const statusElement = document.getElementById('apiConnectionStatus');
-            if (isConnected) {
+            
+            if (healthData && healthData.angelone_connected) {
                 statusElement.innerHTML = `
                     <div class="market-item">
                         <div class="symbol-info">
                             <div class="symbol-name">Angel One API</div>
-                            <div class="symbol-desc">Real-time data streaming</div>
+                            <div class="symbol-desc">Authentication: ${healthData.auth_method || 'MPIN'}</div>
                         </div>
                         <div class="price-change positive">
                             <i class="fas fa-check-circle"></i> Connected
                         </div>
                     </div>
+                    <div class="timestamp">Last Updated: ${new Date().toLocaleString()}</div>
                 `;
             } else {
                 statusElement.innerHTML = `
@@ -892,10 +877,390 @@
                             <i class="fas fa-exclamation-triangle"></i> Disconnected
                         </div>
                     </div>
+                    <div class="timestamp">Last Checked: ${new Date().toLocaleString()}</div>
                 `;
             }
         }
 
-        // Update dashboard with real data
-        function updateDashboard() {
-            const symbols = ['NIFTY',
+        // WebSocket connection management
+        function connectWebSocket() {
+            if (ws) {
+                ws.close();
+            }
+
+            try {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    reconnectAttempts = 0;
+                    
+                    // Subscribe to market data
+                    ws.send(JSON.stringify({ type: 'subscribe', symbol: 'NIFTY' }));
+                    ws.send(JSON.stringify({ type: 'subscribe', symbol: 'BANKNIFTY' }));
+                    ws.send(JSON.stringify({ type: 'subscribe', symbol: 'FINNIFTY' }));
+                    ws.send(JSON.stringify({ type: 'subscribe', symbol: 'MIDCPNIFTY' }));
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (error) {
+                        console.error('WebSocket message parse error:', error);
+                    }
+                };
+
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        setTimeout(() => connectWebSocket(), 5000 * reconnectAttempts);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+
+            } catch (error) {
+                console.error('WebSocket connection failed:', error);
+                setTimeout(() => connectWebSocket(), 5000);
+            }
+        }
+
+        // Handle WebSocket messages
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'connection':
+                    updateConnectionStatus(data.angelone_connected, 'connected');
+                    break;
+                case 'market_update':
+                    symbolData = { ...symbolData, ...data.data };
+                    updateMarketOverview();
+                    break;
+                default:
+                    console.log('Unknown message type:', data.type);
+            }
+        }
+
+        // Fetch market data from API
+        async function fetchMarketData() {
+            try {
+                const symbols = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'];
+                const marketData = await fetchData(`/market/batch`);
+                
+                if (marketData) {
+                    symbolData = marketData;
+                    updateMarketOverview();
+                }
+            } catch (error) {
+                console.error('Failed to fetch market data:', error);
+                showMarketError();
+            }
+        }
+
+        // Update market overview display
+        function updateMarketOverview() {
+            const marketOverview = document.getElementById('marketOverview');
+            
+            if (Object.keys(symbolData).length === 0) {
+                marketOverview.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        No market data available
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            const symbols = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'];
+            
+            symbols.forEach(symbol => {
+                const data = symbolData[symbol];
+                if (data) {
+                    const changeClass = data.change >= 0 ? 'positive' : 'negative';
+                    const icon = data.change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+                    
+                    html += `
+                        <div class="market-item">
+                            <div class="symbol-info">
+                                <div class="symbol-name">${symbol}</div>
+                                <div class="symbol-desc">Volume: ${(data.volume || 0).toLocaleString()}</div>
+                            </div>
+                            <div class="price-info">
+                                <div class="current-price">₹${data.price.toFixed(2)}</div>
+                                <div class="price-change ${changeClass}">
+                                    <i class="fas ${icon}"></i>
+                                    ${data.change >= 0 ? '+' : ''}${data.change.toFixed(2)} (${data.change_percent.toFixed(2)}%)
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            if (html) {
+                html += `<div class="timestamp">Last Updated: ${new Date().toLocaleString()}</div>`;
+                marketOverview.innerHTML = html;
+            }
+        }
+
+        // Show market data error
+        function showMarketError() {
+            document.getElementById('marketOverview').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Failed to load market data. Please check your connection.
+                </div>
+            `;
+        }
+
+        // Fetch and update PCR data
+        async function updatePcrOverview() {
+            try {
+                const pcrData = await fetchData('/pcr/NIFTY');
+                displayPcrData(pcrData);
+            } catch (error) {
+                console.error('Failed to fetch PCR data:', error);
+                showPcrError();
+            }
+        }
+
+        // Display PCR data
+        function displayPcrData(pcrData) {
+            const pcrOverview = document.getElementById('pcrOverview');
+            
+            if (!pcrData) {
+                showPcrError();
+                return;
+            }
+
+            const sentimentClass = getSentimentClass(pcrData.sentiment);
+            
+            pcrOverview.innerHTML = `
+                <div class="pcr-display">
+                    <div class="pcr-label">Put Call Ratio</div>
+                    <div class="pcr-value">${pcrData.pcr_ratio}</div>
+                    <div class="pcr-interpretation ${sentimentClass}">
+                        <i class="fas fa-${getSentimentIcon(pcrData.sentiment)}"></i>
+                        ${pcrData.sentiment} Market Sentiment
+                    </div>
+                </div>
+                <div class="timestamp">Last Updated: ${new Date().toLocaleString()}</div>
+            `;
+        }
+
+        // Get sentiment CSS class
+        function getSentimentClass(sentiment) {
+            switch (sentiment.toLowerCase()) {
+                case 'bullish': return 'positive';
+                case 'bearish': return 'negative';
+                default: return 'neutral';
+            }
+        }
+
+        // Get sentiment icon
+        function getSentimentIcon(sentiment) {
+            switch (sentiment.toLowerCase()) {
+                case 'bullish': return 'arrow-up';
+                case 'bearish': return 'arrow-down';
+                default: return 'minus';
+            }
+        }
+
+        // Show PCR error
+        function showPcrError() {
+            document.getElementById('pcrOverview').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Failed to load PCR data
+                </div>
+            `;
+        }
+
+        // Update market statistics
+        function updateMarketStats() {
+            // Mock data for demonstration - in a real app, this would come from your API
+            document.getElementById('advanceCount').textContent = Math.floor(Math.random() * 1000 + 500);
+            document.getElementById('declineCount').textContent = Math.floor(Math.random() * 800 + 300);
+            document.getElementById('vixValue').textContent = (Math.random() * 10 + 15).toFixed(2);
+            document.getElementById('volumeRatio').textContent = (Math.random() * 0.5 + 1.2).toFixed(2);
+        }
+
+        // Initialize and update chart
+        async function initChart() {
+            try {
+                const symbol = document.getElementById('chartSymbol').value;
+                const period = document.getElementById('chartTimeframe').value;
+                const historicalData = await fetchData(`/history/${symbol}/${period}`);
+                
+                renderChart(historicalData);
+            } catch (error) {
+                console.error('Failed to load chart data:', error);
+                showChartError();
+            }
+        }
+
+        // Render chart
+        function renderChart(historicalData) {
+            const ctx = document.getElementById('liveChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+
+            const labels = historicalData.data.map(item => 
+                new Date(item.timestamp).toLocaleDateString()
+            );
+            const prices = historicalData.data.map(item => item.close);
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${historicalData.symbol} Price`,
+                        data: prices,
+                        borderColor: 'rgb(0, 212, 255)',
+                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#94a3b8'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#94a3b8'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Show chart error
+        function showChartError() {
+            const chartContainer = document.querySelector('.chart-container');
+            chartContainer.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Failed to load chart data
+                </div>
+            `;
+        }
+
+        // Update chart when controls change
+        function updateChart() {
+            initChart();
+        }
+
+        // Update trading signals based on market data
+        function updateTradingSignals() {
+            const niftyData = symbolData['NIFTY'];
+            
+            if (niftyData) {
+                const niftyTrend = document.getElementById('niftyTrend');
+                const trendClass = niftyData.change >= 0 ? 'positive' : 'negative';
+                const trendIcon = niftyData.change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+                const trendText = niftyData.change >= 0 ? 'Bullish' : 'Bearish';
+                
+                niftyTrend.className = `price-change ${trendClass}`;
+                niftyTrend.innerHTML = `<i class="fas ${trendIcon}"></i> ${trendText}`;
+            }
+        }
+
+        // Initialize dashboard
+        async function initDashboard() {
+            console.log('🚀 Initializing FS DASH Frontend...');
+            
+            // Initialize UI elements
+            initParticles();
+            updateLiveTime();
+            setInterval(updateLiveTime, 1000);
+
+            // Check backend health
+            await checkApiHealth();
+            
+            // Connect WebSocket if backend is available
+            if (isConnected) {
+                connectWebSocket();
+            }
+
+            // Fetch initial data
+            await Promise.all([
+                fetchMarketData(),
+                updatePcrOverview(),
+                initChart()
+            ]);
+
+            // Update market stats
+            updateMarketStats();
+            updateTradingSignals();
+
+            // Set up periodic updates
+            setInterval(async () => {
+                await checkApiHealth();
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    await fetchMarketData();
+                }
+                updateMarketStats();
+                updateTradingSignals();
+            }, 30000); // Update every 30 seconds
+
+            // Set up periodic PCR updates
+            setInterval(updatePcrOverview, 60000); // Update every minute
+
+            console.log('✅ Dashboard initialized successfully');
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', initDashboard);
+
+        // Chart control event listeners
+        document.getElementById('chartSymbol').addEventListener('change', updateChart);
+        document.getElementById('chartTimeframe').addEventListener('change', updateChart);
+
+        // Global error handler
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
+
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Page is hidden, reduce update frequency
+                console.log('Page hidden, reducing updates');
+            } else {
+                // Page is visible, resume normal updates
+                console.log('Page visible, resuming updates');
+                fetchMarketData();
+                updatePcrOverview();
+            }
+        });
+    </script>
+</body>
+</html>
