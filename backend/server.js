@@ -2,6 +2,10 @@
  * FS DASH Trading Dashboard Backend
  * File: server.js
  * Angel One SmartAPI Integration with WebSocket Real-time Data
+ *
+ * UPDATED: Changed from password to MPIN authentication
+ * NOTE: This file includes hardcoded credentials for demonstration purposes.
+ * FOR PRODUCTION USE, IT IS STRONGLY RECOMMENDED TO USE A SEPARATE .env FILE.
  */
 
 const express = require('express');
@@ -15,17 +19,23 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { SmartAPI } = require('smartapi-javascript');
 
-// Environment variables
-require('dotenv').config();
+// --- WARNING: HARDCODED CREDENTIALS ---
+// These credentials are now part of your code.
+// This is not a secure way to handle secrets.
+//
+const ANGEL_API_KEY = 'XXXXXXXXXXXX';
+const ANGEL_CLIENT_CODE = 'XXXXXXXX';
+const ANGEL_MPIN = 'XXXX'; // Changed from password to MPIN (4-digit PIN)
+const ANGEL_TOTP = 'XXXXXXXXXXXXXXXXXXX';
 
 const speakeasy = require('speakeasy');
 
 // Generate and log TOTP for Angel One
 const generatedTotp = speakeasy.totp({
-    secret: process.env.ANGEL_TOTP,
+    secret: ANGEL_TOTP,
     encoding: 'base32'
 });
-console.log("泊 Generated TOTP for Angel One:", generatedTotp);
+console.log("泊 Generated TOTP for Angel One:", generatedTotp);
 
 const app = express();
 const server = http.createServer(app);
@@ -34,11 +44,11 @@ const wss = new WebSocket.Server({ server });
 // Configuration
 const PORT = process.env.PORT || 25602;
 
-// Angel One SmartAPI Configuration
+// Angel One SmartAPI Configuration - UPDATED FOR MPIN
 const SMARTAPI_CONFIG = {
-    api_key: process.env.ANGEL_API_KEY,
-    client_code: process.env.ANGEL_CLIENT_CODE,
-    pwd: process.env.ANGEL_PASSWORD,
+    api_key: ANGEL_API_KEY,
+    client_code: ANGEL_CLIENT_CODE,
+    mpin: ANGEL_MPIN,  // Changed from pwd to mpin
     factor2: generatedTotp
 };
 
@@ -56,7 +66,6 @@ const db = new sqlite3.Database('./fsdash.db');
 
 // Initialize database tables
 db.serialize(() => {
-    // Portfolio table
     db.run(`CREATE TABLE IF NOT EXISTS portfolio (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         symbol TEXT NOT NULL,
@@ -68,7 +77,6 @@ db.serialize(() => {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Trades table
     db.run(`CREATE TABLE IF NOT EXISTS trades (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         symbol TEXT NOT NULL,
@@ -79,7 +87,6 @@ db.serialize(() => {
         status TEXT DEFAULT 'COMPLETED'
     )`);
 
-    // Market data cache table
     db.run(`CREATE TABLE IF NOT EXISTS market_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         symbol TEXT NOT NULL,
@@ -90,7 +97,6 @@ db.serialize(() => {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Option chain data table
     db.run(`CREATE TABLE IF NOT EXISTS option_chain (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         symbol TEXT NOT NULL,
@@ -116,7 +122,7 @@ let isSmartAPIConnected = false;
 let dataUpdateInterval = null;
 
 /**
- * SmartAPI Helper Class
+ * SmartAPI Helper Class - UPDATED FOR MPIN
  */
 class SmartAPIManager {
     constructor() {
@@ -129,9 +135,12 @@ class SmartAPIManager {
 
     async login() {
         try {
+            console.log('Attempting login with MPIN authentication...');
+            
+            // Updated login method for MPIN
             const loginData = await this.smartapi.generateSession(
                 SMARTAPI_CONFIG.client_code,
-                SMARTAPI_CONFIG.pwd,
+                SMARTAPI_CONFIG.mpin,  // Using MPIN instead of password
                 SMARTAPI_CONFIG.factor2
             );
 
@@ -139,20 +148,37 @@ class SmartAPIManager {
                 this.isLoggedIn = true;
                 this.userProfile = loginData.data;
                 isSmartAPIConnected = true;
-                console.log('SmartAPI Login successful:', loginData.data.clientcode);
-                
+                console.log('✅ SmartAPI Login successful:', loginData.data.clientcode);
+                console.log('📱 Authentication method: MPIN');
+
                 this.smartapi.setSessionExpiryHook(() => {
-                    console.log('Session expired. Attempting to relogin...');
+                    console.log('⚠️  Session expired. Attempting to relogin...');
                     this.login();
                 });
 
                 return true;
             } else {
-                console.error('SmartAPI Login failed:', loginData.message);
+                console.error('❌ SmartAPI Login failed:', loginData.message);
+                console.error('💡 Troubleshooting tips:');
+                console.error('   1. Verify your MPIN is correct (4-digit number)');
+                console.error('   2. Check if your Angel One account is active');
+                console.error('   3. Ensure TOTP is generating correctly');
+                console.error('   4. Try logging into Angel One app manually first');
                 return false;
             }
         } catch (error) {
-            console.error('SmartAPI Login error:', error);
+            console.error('❌ SmartAPI Login error:', error.message);
+            console.error('🔧 Error details:', error);
+            
+            // Provide more specific error handling
+            if (error.message.includes('MPIN')) {
+                console.error('💡 MPIN related error - check your 4-digit MPIN');
+            } else if (error.message.includes('TOTP')) {
+                console.error('💡 TOTP related error - check your secret key and time sync');
+            } else if (error.message.includes('network') || error.message.includes('timeout')) {
+                console.error('💡 Network error - check your internet connection');
+            }
+            
             isSmartAPIConnected = false;
             return false;
         }
@@ -291,7 +317,7 @@ class MarketDataGenerator {
             const putIntrinsic = Math.max(strike - basePrice, 0);
             const timeValue = Math.max(50 - (distanceFromATM / 20), 5);
             const iv = Math.random() * 30 + 15;
-            
+
             optionData.push({
                 strike: strike,
                 call_ltp: parseFloat(Math.max(callIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05).toFixed(2)),
@@ -319,7 +345,7 @@ class MarketDataGenerator {
 
         const pcr = totalPutOI / totalCallOI;
         let sentiment = 'NEUTRAL';
-        
+
         if (pcr < 0.8) sentiment = 'BULLISH';
         else if (pcr > 1.2) sentiment = 'BEARISH';
 
@@ -351,7 +377,7 @@ wss.on('connection', (ws) => {
     ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
-            
+
             switch (data.type) {
                 case 'subscribe':
                     await handleSubscription(ws, data);
@@ -375,7 +401,7 @@ wss.on('connection', (ws) => {
 
 async function handleSubscription(ws, data) {
     console.log(`Subscribing to ${data.symbol || 'market data'}`);
-    
+
     if (data.symbol) {
         const marketData = await getCurrentMarketData(data.symbol);
         ws.send(JSON.stringify({
@@ -405,16 +431,16 @@ async function getCurrentMarketData(symbol) {
                     volume: parseInt(apiData.volume || 0),
                     timestamp: new Date().toISOString()
                 };
-                
+
                 marketDataCache.set(symbol, marketData);
                 return marketData;
             }
         }
-        
+
         const generatedData = marketDataGenerator.generateRealtimeData(symbol);
         marketDataCache.set(symbol, generatedData);
         return generatedData;
-        
+
     } catch (error) {
         console.error(`Error fetching market data for ${symbol}:`, error);
         return marketDataGenerator.generateRealtimeData(symbol);
@@ -431,7 +457,8 @@ app.get('/api/health', (req, res) => {
         status: 'OK',
         timestamp: new Date().toISOString(),
         angelone_connected: isSmartAPIConnected,
-        smartapi_status: smartAPIManager.isLoggedIn ? 'connected' : 'disconnected'
+        smartapi_status: smartAPIManager.isLoggedIn ? 'connected' : 'disconnected',
+        auth_method: 'MPIN'
     });
 });
 
@@ -451,11 +478,11 @@ app.post('/api/market/batch', async (req, res) => {
     try {
         const { symbols } = req.body;
         const marketData = {};
-        
+
         for (const symbol of symbols) {
             marketData[symbol] = await getCurrentMarketData(symbol);
         }
-        
+
         res.json(marketData);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -467,19 +494,19 @@ app.get('/api/optionchain/:symbol/:expiry?', async (req, res) => {
     try {
         const symbol = req.params.symbol.toUpperCase();
         const expiry = req.params.expiry || getNextExpiry();
-        
+
         let optionData;
-        
+
         if (isSmartAPIConnected) {
             optionData = await smartAPIManager.getOptionChain(symbol, expiry);
         }
-        
+
         if (!optionData) {
             optionData = marketDataGenerator.generateOptionChain(symbol);
         }
-        
+
         optionChainCache.set(`${symbol}_${expiry}`, optionData);
-        
+
         res.json({
             symbol: symbol,
             expiry: expiry,
@@ -496,9 +523,9 @@ app.get('/api/pcr/:symbol/:expiry?', async (req, res) => {
     try {
         const symbol = req.params.symbol.toUpperCase();
         const expiry = req.params.expiry || getNextExpiry();
-        
+
         let optionChainData = optionChainCache.get(`${symbol}_${expiry}`);
-        
+
         if (!optionChainData) {
             if (isSmartAPIConnected) {
                 optionChainData = await smartAPIManager.getOptionChain(symbol, expiry);
@@ -506,10 +533,10 @@ app.get('/api/pcr/:symbol/:expiry?', async (req, res) => {
                 optionChainData = marketDataGenerator.generateOptionChain(symbol);
             }
         }
-        
+
         const pcrData = marketDataGenerator.calculatePCR(optionChainData);
         pcrCache.set(symbol, pcrData);
-        
+
         res.json(pcrData);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -520,7 +547,7 @@ app.get('/api/pcr/:symbol/:expiry?', async (req, res) => {
 app.get('/api/portfolio', async (req, res) => {
     try {
         let portfolioData;
-        
+
         if (isSmartAPIConnected) {
             portfolioData = await smartAPIManager.getPortfolio();
         } else {
@@ -535,11 +562,11 @@ app.get('/api/portfolio', async (req, res) => {
                 positions: []
             };
         }
-        
+
         let totalValue = 0;
         let totalInvested = 0;
         let totalPnL = 0;
-        
+
         portfolioData.holdings.forEach(holding => {
             const value = holding.quantity * holding.ltp;
             const invested = holding.quantity * holding.avgprice;
@@ -547,7 +574,7 @@ app.get('/api/portfolio', async (req, res) => {
             totalInvested += invested;
             totalPnL += (value - invested);
         });
-        
+
         const summary = {
             total_value: totalValue,
             total_invested: totalInvested,
@@ -555,7 +582,7 @@ app.get('/api/portfolio', async (req, res) => {
             day_change: totalPnL * 0.1,
             holdings_count: portfolioData.holdings.length
         };
-        
+
         res.json({
             summary: summary,
             holdings: portfolioData.holdings,
@@ -571,9 +598,9 @@ app.get('/api/history/:symbol/:period?', async (req, res) => {
     try {
         const symbol = req.params.symbol.toUpperCase();
         const period = req.params.period || '1D';
-        
+
         const data = generateHistoricalData(symbol, period);
-        
+
         res.json({
             symbol: symbol,
             period: period,
@@ -592,7 +619,7 @@ function getNextExpiry() {
     const nextThursday = new Date(now);
     const daysUntilThursday = (4 - now.getDay() + 7) % 7;
     nextThursday.setDate(now.getDate() + daysUntilThursday);
-    
+
     return nextThursday.toISOString().split('T')[0];
 }
 
@@ -601,7 +628,7 @@ function generateHistoricalData(symbol, period) {
     const basePrice = (baseDataForSymbol && baseDataForSymbol.price) || 21725;
     const data = [];
     const labels = [];
-    
+
     const periods = {
         '1D': { points: 24, interval: 'hour' },
         '1W': { points: 7, interval: 'day' },
@@ -609,9 +636,9 @@ function generateHistoricalData(symbol, period) {
         '3M': { points: 90, interval: 'day' },
         '1Y': { points: 365, interval: 'day' }
     };
-    
+
     const config = periods[period] || periods['1D'];
-    
+
     for (let i = 0; i < config.points; i++) {
         const date = new Date();
         if (config.interval === 'hour') {
@@ -619,11 +646,11 @@ function generateHistoricalData(symbol, period) {
         } else {
             date.setDate(date.getDate() - (config.points - i));
         }
-        
+
         const volatility = 0.02;
         const change = (Math.random() - 0.5) * volatility;
         const price = basePrice * (1 + change * i * 0.01);
-        
+
         labels.push(date.toISOString());
         data.push({
             timestamp: date.toISOString(),
@@ -634,7 +661,7 @@ function generateHistoricalData(symbol, period) {
             volume: Math.floor(Math.random() * 1000000 + 100000)
         });
     }
-    
+
     return { labels, data };
 }
 
@@ -644,25 +671,25 @@ function generateHistoricalData(symbol, period) {
 function startDataUpdates() {
     dataUpdateInterval = setInterval(async () => {
         if (connectedClients.size === 0) return;
-        
+
         const symbols = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'];
         const marketData = {};
-        
+
         for (const symbol of symbols) {
             marketData[symbol] = await getCurrentMarketData(symbol);
         }
-        
+
         const message = JSON.stringify({
             type: 'market_update',
             data: marketData
         });
-        
+
         connectedClients.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(message);
             }
         });
-        
+
     }, 5000);
 }
 
@@ -671,52 +698,55 @@ function startDataUpdates() {
  */
 async function initializeServer() {
     try {
-        console.log('Initializing FS DASH Backend Server...');
-        
+        console.log('🚀 Initializing FS DASH Backend Server...');
+        console.log('📱 Authentication Method: MPIN');
+
         const loginSuccess = await smartAPIManager.login();
         if (loginSuccess) {
-            console.log('SmartAPI connected successfully');
+            console.log('✅ SmartAPI connected successfully with MPIN');
         } else {
-            console.log('SmartAPI connection failed, using mock data');
+            console.log('⚠️  SmartAPI connection failed, using mock data');
+            console.log('💡 Check your MPIN and TOTP credentials');
         }
-        
+
         startDataUpdates();
-        
+
         server.listen(PORT, () => {
-            console.log(`噫 FS DASH Server running on port ${PORT}`);
-            console.log(`投 WebSocket endpoint: ws://localhost:${PORT}/ws`);
-            console.log(`伯 REST API available at: http://localhost:${PORT}/api`);
-            console.log(`鳥 Angel One SmartAPI: ${isSmartAPIConnected ? 'Connected' : 'Disconnected'}`);
+            console.log(`\n🟢 FS DASH Server running on port ${PORT}`);
+            console.log(`📡 WebSocket endpoint: ws://localhost:${PORT}/ws`);
+            console.log(`🌐 REST API available at: http://localhost:${PORT}/api`);
+            console.log(`📈 Angel One SmartAPI: ${isSmartAPIConnected ? '✅ Connected' : '❌ Disconnected'}`);
+            console.log(`🔐 Auth Method: MPIN\n`);
         });
-        
+
     } catch (error) {
-        console.error('Server initialization failed:', error);
+        console.error('❌ Server initialization failed:', error);
         process.exit(1);
     }
 }
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-    console.log('\nShutting down server...');
-    
+    console.log('\n🛑 Shutting down server...');
+
     if (dataUpdateInterval) {
         clearInterval(dataUpdateInterval);
     }
-    
+
     connectedClients.forEach(client => {
         client.close();
     });
-    
+
     db.close((err) => {
         if (err) {
             console.error(err.message);
         } else {
-            console.log('Database connection closed.');
+            console.log('🗄️  Database connection closed.');
         }
     });
-    
+
     server.close(() => {
-        console.log('Server closed successfully');
+        console.log('✅ Server closed successfully');
         process.exit(0);
     });
 });
