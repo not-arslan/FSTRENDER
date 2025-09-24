@@ -385,16 +385,6 @@
             transform: scale(1.05);
         }
 
-        .price-high {
-            color: var(--call-color);
-            font-weight: 700;
-        }
-
-        .price-low {
-            color: var(--put-color);
-            font-weight: 700;
-        }
-
         .volume-high {
             background: rgba(0, 212, 255, 0.2);
             border-radius: 4px;
@@ -478,68 +468,11 @@
             color: var(--warning-color);
         }
 
-        .filter-section {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--glass-bg);
-            padding: 10px 15px;
-            border-radius: 25px;
-            border: 1px solid var(--border-color);
-        }
-
-        .filter-label {
-            font-size: 12px;
-            color: var(--text-secondary);
+        .error-message {
+            color: var(--danger-color);
+            text-align: center;
+            padding: 40px;
             font-weight: 600;
-        }
-
-        .filter-checkbox {
-            width: 18px;
-            height: 18px;
-            border-radius: 4px;
-            border: 2px solid var(--border-color);
-            background: transparent;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .filter-checkbox:checked {
-            background: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-
-        .export-section {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-top: 30px;
-        }
-
-        .export-btn {
-            padding: 12px 24px;
-            background: var(--glass-bg);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .export-btn:hover {
-            background: var(--primary-color);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
         }
 
         @media (max-width: 768px) {
@@ -606,8 +539,8 @@
         </nav>
         <div class="header-stats">
             <div class="connection-status">
-                <div class="status-dot connected" id="connectionStatus"></div>
-                <span id="statusText">Connected</span>
+                <div class="status-dot" id="connectionStatus"></div>
+                <span id="statusText">Initializing...</span>
             </div>
             <div class="live-time" id="liveTime"></div>
         </div>
@@ -633,10 +566,7 @@
                 <div class="control-group">
                     <label class="control-label">Expiry Date</label>
                     <select id="expirySelect">
-                        <option value="2024-01-25">25 JAN 2024</option>
-                        <option value="2024-02-01">01 FEB 2024</option>
-                        <option value="2024-02-08">08 FEB 2024</option>
-                        <option value="2024-02-15">15 FEB 2024</option>
+                        <!-- Will be populated dynamically -->
                     </select>
                 </div>
             </div>
@@ -706,34 +636,14 @@
             </div>
         </div>
 
-        <!-- Filter Section -->
-        <div class="filter-section">
-            <div class="filter-group">
-                <input type="checkbox" id="showITM" class="filter-checkbox" checked>
-                <label for="showITM" class="filter-label">Show ITM</label>
-            </div>
-            <div class="filter-group">
-                <input type="checkbox" id="showOTM" class="filter-checkbox" checked>
-                <label for="showOTM" class="filter-label">Show OTM</label>
-            </div>
-            <div class="filter-group">
-                <input type="checkbox" id="highlightHighOI" class="filter-checkbox" checked>
-                <label for="highlightHighOI" class="filter-label">Highlight High OI</label>
-            </div>
-            <div class="filter-group">
-                <input type="checkbox" id="highlightHighVolume" class="filter-checkbox">
-                <label for="highlightHighVolume" class="filter-label">Highlight High Volume</label>
-            </div>
-        </div>
-
         <!-- Option Chain Table -->
         <div class="option-chain-container">
             <div class="chain-header">
                 <div class="chain-title">
                     <i class="fas fa-table"></i>
-                    NIFTY Option Chain
+                    <span id="chainTitle">NIFTY Option Chain</span>
                 </div>
-                <div class="spot-price" id="spotPrice">21,725.00</div>
+                <div class="spot-price" id="spotPrice">Loading...</div>
             </div>
 
             <div id="optionChainContent">
@@ -743,28 +653,16 @@
                 </div>
             </div>
         </div>
-
-        <!-- Export Section -->
-        <div class="export-section">
-            <button class="export-btn" onclick="exportToCSV()">
-                <i class="fas fa-download"></i>
-                Export CSV
-            </button>
-            <button class="export-btn" onclick="exportToExcel()">
-                <i class="fas fa-file-excel"></i>
-                Export Excel
-            </button>
-            <button class="export-btn" onclick="printChain()">
-                <i class="fas fa-print"></i>
-                Print
-            </button>
-        </div>
     </main>
 
     <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:25602';
+        
         let optionChainData = {};
-        let currentSpotPrice = 21725.00;
+        let currentSpotPrice = 0;
         let refreshInterval = null;
+        let isConnected = false;
 
         // Initialize particles
         function initParticles() {
@@ -785,67 +683,129 @@
             document.getElementById('liveTime').textContent = now.toLocaleTimeString();
         }
 
-        // Generate mock option chain data
-        function generateMockData() {
-            const symbol = document.getElementById('symbolSelect').value;
-            const basePrice = getBasePrice(symbol);
-            const atmStrike = Math.round(basePrice / 100) * 100;
-            const range = parseInt(document.getElementById('atmRange').value);
-            const interval = parseInt(document.getElementById('strikeInterval').value);
-            
-            const data = {};
-            
-            for (let i = -range; i <= range; i++) {
-                const strike = atmStrike + (i * interval);
-                const distanceFromATM = Math.abs(strike - basePrice);
-                
-                // Calculate intrinsic values
-                const callIntrinsic = Math.max(basePrice - strike, 0);
-                const putIntrinsic = Math.max(strike - basePrice, 0);
-                
-                // Add time value (decreases with distance from ATM)
-                const timeValue = Math.max(50 - (distanceFromATM / 20), 5);
-                
-                data[strike] = {
-                    strike: strike,
-                    call: {
-                        ltp: Math.max(callIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05),
-                        bid: 0,
-                        ask: 0,
-                        volume: Math.floor(Math.random() * 10000 + 1000),
-                        oi: Math.floor(Math.random() * 50000 + 10000),
-                        change: (Math.random() * 20 - 10).toFixed(2),
-                        iv: (Math.random() * 30 + 15).toFixed(2)
-                    },
-                    put: {
-                        ltp: Math.max(putIntrinsic + timeValue + (Math.random() * 20 - 10), 0.05),
-                        bid: 0,
-                        ask: 0,
-                        volume: Math.floor(Math.random() * 10000 + 1000),
-                        oi: Math.floor(Math.random() * 50000 + 10000),
-                        change: (Math.random() * 20 - 10).toFixed(2),
-                        iv: (Math.random() * 30 + 15).toFixed(2)
-                    }
-                };
+        // API Helper Functions
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api${endpoint}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error(`API Error (${endpoint}):`, error);
+                throw error;
             }
-            
-            return data;
         }
 
-        function getBasePrice(symbol) {
-            const prices = {
-                'NIFTY': 21725,
-                'BANKNIFTY': 46850,
-                'FINNIFTY': 20150,
-                'MIDCPNIFTY': 10450
-            };
-            return prices[symbol] || 21725;
+        // Check API connection
+        async function checkConnection() {
+            try {
+                const health = await fetchData('/health');
+                updateConnectionStatus(health.angelone_connected);
+                return health.angelone_connected;
+            } catch (error) {
+                updateConnectionStatus(false);
+                return false;
+            }
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const statusDot = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('statusText');
+            
+            if (connected) {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Connected';
+                isConnected = true;
+            } else {
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+                isConnected = false;
+            }
+        }
+
+        // Generate expiry dates
+        function generateExpiryDates() {
+            const expirySelect = document.getElementById('expirySelect');
+            const dates = [];
+            const now = new Date();
+            
+            // Generate next 8 weekly expiries (Thursdays)
+            for (let i = 0; i < 8; i++) {
+                const date = new Date(now);
+                const daysUntilThursday = (4 - now.getDay() + 7) % 7;
+                date.setDate(now.getDate() + daysUntilThursday + (i * 7));
+                
+                const dateStr = date.toISOString().split('T')[0];
+                const displayStr = date.toLocaleDateString('en-GB', { 
+                    day: '2-digit', 
+                    month: 'short', 
+                    year: 'numeric' 
+                }).toUpperCase();
+                
+                dates.push({ value: dateStr, display: displayStr });
+            }
+            
+            expirySelect.innerHTML = dates.map(d => 
+                `<option value="${d.value}">${d.display}</option>`
+            ).join('');
+        }
+
+        // Fetch current spot price
+        async function fetchSpotPrice() {
+            try {
+                const symbol = document.getElementById('symbolSelect').value;
+                const marketData = await fetchData(`/market/${symbol}`);
+                
+                if (marketData && marketData.price) {
+                    currentSpotPrice = marketData.price;
+                    document.getElementById('spotPrice').textContent = `₹${marketData.price.toFixed(2)}`;
+                    
+                    // Update chain title
+                    document.getElementById('chainTitle').textContent = `${symbol} Option Chain`;
+                    
+                    return marketData.price;
+                }
+            } catch (error) {
+                console.error('Failed to fetch spot price:', error);
+                document.getElementById('spotPrice').textContent = 'Error';
+            }
+            return 0;
+        }
+
+        // Fetch option chain data
+        async function fetchOptionChain() {
+            try {
+                const symbol = document.getElementById('symbolSelect').value;
+                const expiry = document.getElementById('expirySelect').value;
+                
+                const optionData = await fetchData(`/optionchain/${symbol}/${expiry}`);
+                
+                if (optionData && optionData.data) {
+                    optionChainData = optionData.data;
+                    renderOptionChain();
+                    updateStatistics();
+                } else {
+                    throw new Error('No option chain data received');
+                }
+            } catch (error) {
+                console.error('Failed to fetch option chain:', error);
+                showError('Failed to load option chain data. Please check your connection.');
+            }
         }
 
         // Render option chain table
-        function renderOptionChain(data) {
+        function renderOptionChain() {
             const content = document.getElementById('optionChainContent');
-            const atmStrike = Math.round(currentSpotPrice / 100) * 100;
+            
+            if (!optionChainData || optionChainData.length === 0) {
+                showError('No option chain data available');
+                return;
+            }
+            
+            const atmRange = parseInt(document.getElementById('atmRange').value);
+            const filteredData = filterOptionData(optionChainData, atmRange);
             
             let html = `
                 <div style="overflow-x: auto;">
@@ -868,7 +828,159 @@
                         <tbody>
             `;
             
-            const strikes = Object.keys(data).map(Number).sort((a, b) => a - b);
+            filteredData.forEach(option => {
+                const isATM = Math.abs(option.strike - currentSpotPrice) < 50;
+                const isCallITM = option.strike < currentSpotPrice;
+                const isPutITM = option.strike > currentSpotPrice;
+                
+                const rowClass = isATM ? 'atm' : '';
+                
+                html += `
+                    <tr class="option-row ${rowClass}">
+                        <td class="option-cell call-cell">${option.call_oi.toLocaleString()}</td>
+                        <td class="option-cell call-cell">${option.call_volume.toLocaleString()}</td>
+                        <td class="option-cell call-cell">${option.call_iv || '-'}%</td>
+                        <td class="option-cell call-cell">₹${option.call_ltp.toFixed(2)}</td>
+                        <td class="option-cell call-cell ${getChangeClass(0)}">-</td>
+                        <td class="option-cell strike-price">₹${option.strike.toFixed(0)}</td>
+                        <td class="option-cell put-cell ${getChangeClass(0)}">-</td>
+                        <td class="option-cell put-cell">₹${option.put_ltp.toFixed(2)}</td>
+                        <td class="option-cell put-cell">${option.put_iv || '-'}%</td>
+                        <td class="option-cell put-cell">${option.put_volume.toLocaleString()}</td>
+                        <td class="option-cell put-cell">${option.put_oi.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
             
-            strikes.forEach(strike => {
-                const option = data[strike];
+            html += '</tbody></table></div>';
+            content.innerHTML = html;
+        }
+
+        // Filter option data based on ATM range
+        function filterOptionData(data, range) {
+            if (!currentSpotPrice || !data) return [];
+            
+            const atmStrike = Math.round(currentSpotPrice / 100) * 100;
+            const interval = parseInt(document.getElementById('strikeInterval').value);
+            
+            return data.filter(option => {
+                const distance = Math.abs(option.strike - atmStrike);
+                return distance <= (range * interval);
+            }).sort((a, b) => a.strike - b.strike);
+        }
+
+        // Get CSS class for price change
+        function getChangeClass(change) {
+            if (change > 0) return 'positive';
+            if (change < 0) return 'negative';
+            return 'neutral';
+        }
+
+        // Update statistics
+        function updateStatistics() {
+            if (!optionChainData || optionChainData.length === 0) return;
+            
+            let totalCallOI = 0;
+            let totalPutOI = 0;
+            let maxPainStrike = 0;
+            let maxPainValue = 0;
+            
+            optionChainData.forEach(option => {
+                totalCallOI += option.call_oi;
+                totalPutOI += option.put_oi;
+                
+                // Calculate pain value (simplified)
+                const pain = option.call_oi + option.put_oi;
+                if (pain > maxPainValue) {
+                    maxPainValue = pain;
+                    maxPainStrike = option.strike;
+                }
+            });
+            
+            const pcr = totalPutOI / totalCallOI;
+            
+            // Update display
+            document.getElementById('totalCallOI').textContent = (totalCallOI / 100000).toFixed(1) + 'L';
+            document.getElementById('totalPutOI').textContent = (totalPutOI / 100000).toFixed(1) + 'L';
+            document.getElementById('pcrValue').textContent = pcr.toFixed(2);
+            document.getElementById('maxPain').textContent = `₹${maxPainStrike.toFixed(0)}`;
+        }
+
+        // Show error message
+        function showError(message) {
+            document.getElementById('optionChainContent').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    ${message}
+                </div>
+            `;
+        }
+
+        // Refresh option chain data
+        async function refreshData() {
+            document.getElementById('refreshBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+            
+            try {
+                await fetchSpotPrice();
+                await fetchOptionChain();
+            } catch (error) {
+                console.error('Refresh failed:', error);
+            } finally {
+                document.getElementById('refreshBtn').innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
+            }
+        }
+
+        // Set up auto refresh
+        function setupAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            
+            const refreshRate = parseInt(document.getElementById('autoRefresh').value);
+            if (refreshRate > 0) {
+                refreshInterval = setInterval(refreshData, refreshRate * 1000);
+            }
+        }
+
+        // Initialize the page
+        async function initializePage() {
+            console.log('🚀 Initializing Option Chain...');
+            
+            initParticles();
+            updateLiveTime();
+            setInterval(updateLiveTime, 1000);
+            
+            generateExpiryDates();
+            
+            // Check connection
+            await checkConnection();
+            
+            // Initial data load
+            await fetchSpotPrice();
+            await fetchOptionChain();
+            
+            // Set up auto refresh
+            setupAutoRefresh();
+            
+            console.log('✅ Option Chain initialized');
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', initializePage);
+        
+        document.getElementById('symbolSelect').addEventListener('change', refreshData);
+        document.getElementById('expirySelect').addEventListener('change', refreshData);
+        document.getElementById('atmRange').addEventListener('change', () => {
+            if (optionChainData) renderOptionChain();
+        });
+        document.getElementById('strikeInterval').addEventListener('change', () => {
+            if (optionChainData) renderOptionChain();
+        });
+        document.getElementById('autoRefresh').addEventListener('change', setupAutoRefresh);
+        document.getElementById('refreshBtn').addEventListener('click', refreshData);
+
+        // Health check interval
+        setInterval(checkConnection, 30000);
+    </script>
+</body>
+</html>
